@@ -62,6 +62,8 @@ dc.barChart = function (parent, chartGroup) {
                 return "stack " + "_" + i;
             });
 
+	layers.exit().remove();
+
         layers.each(function (d) {
             var layer = d3.select(this);
 

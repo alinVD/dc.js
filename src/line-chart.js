@@ -54,6 +54,7 @@ dc.lineChart = function (parent, chartGroup) {
 
         var layers = layersList.selectAll("g.stack").data(_chart.stackLayers());
 
+	layers.exit().remove();
         var layersEnter = layers
             .enter()
             .append("g")

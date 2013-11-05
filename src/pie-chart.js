@@ -80,6 +80,10 @@ dc.pieChart = function (parent, chartGroup) {
         // set radius on basis of chart dimension if missing
         _radius = _radius ? _radius : d3.min([_chart.width(), _chart.height()]) /2;
 
+	// recompute colors if needed
+	if (_chart.elasticColor())
+	    _chart.calculateColorDomain();
+	
         var arc = buildArcs();
 
         var pie = pieLayout();

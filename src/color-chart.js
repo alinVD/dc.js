@@ -9,6 +9,7 @@ dc.colorChart = function(_chart) {
     var _colors = d3.scale.category20c();
 
     var _colorAccessor = function(d) { return _chart.keyAccessor()(d); };
+    var _cElasticity = false;
 
     var _colorCalculator = function(value) {
        return _colors(value,_chart);
@@ -76,6 +77,19 @@ dc.colorChart = function(_chart) {
         _colorAccessor = _;
         return _chart;
     };
+
+    /**
+    #### .elasticC([boolean])
+    Turn on/off elastic colors. If color elasticity is turned on, then the color chart will attempt to generate and
+    recalculate color range whenever redraw event is triggered.
+
+    **/
+    _chart.elasticColor = function (_) {
+        if (!arguments.length) return _cElasticity;
+        _cElasticity = _;
+        return _chart;
+    };
+
 
     /**
     #### .colorDomain([domain])

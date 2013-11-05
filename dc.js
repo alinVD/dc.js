@@ -307,8 +307,8 @@ dc.printers.filter = function (filter) {
 };
 
 dc.pluck = function(n,f) {
-    return function(d) {
-        return f ? f.call(this,d[n]) : d[n];
+    return function(d, i) {
+        return f ? f.call(this,d[n], i) : d[n];
     };
 };
 
@@ -1612,7 +1612,6 @@ dc.coordinateGridChart = function (_chart) {
         _zoomOutRestrict = _;
         return _chart;
     };
-
     _chart._generateG = function (parent) {
         if (parent === undefined)
             _parent = _chart.svg();
@@ -1620,7 +1619,7 @@ dc.coordinateGridChart = function (_chart) {
             _parent = parent;
 
         _g = _parent.append("g");
-
+	
         _chartBodyG = _g.append("g").attr("class", "chart-body")
             .attr("transform", "translate(" + _chart.margins().left + ", " + _chart.margins().top + ")")
             .attr("clip-path", "url(#" + getClipPathId() + ")");
@@ -1823,11 +1822,11 @@ dc.coordinateGridChart = function (_chart) {
     _chart.renderXAxis = function (g) {
         var axisXG = g.selectAll("g.x");
 
-        if (axisXG.empty())
-            axisXG = g.append("g")
+        if (axisXG.empty()){
+	    axisXG = g.append("g")
                 .attr("class", "axis x")
                 .attr("transform", "translate(" + _chart.margins().left + "," + _chart.xAxisY() + ")");
-
+	}
         var axisXLab = g.selectAll("text."+X_AXIS_LABEL_CLASS);
         if (axisXLab.empty() && _chart.xAxisLabel())
         axisXLab = g.append('text')
@@ -1851,7 +1850,10 @@ dc.coordinateGridChart = function (_chart) {
                     .attr("class", GRID_LINE_CLASS + " " + VERTICAL_CLASS)
                     .attr("transform", "translate(" + _chart.yAxisX() + "," + _chart.margins().top + ")");
 
-            var ticks = _xAxis.tickValues() ? _xAxis.tickValues() : _x.ticks(_xAxis.ticks()[0]);
+            var ticks = _chart.isOrdinal() ?
+		_x.domain() :
+		( _xAxis.tickValues() ? 
+		  _xAxis.tickValues() : _x.ticks(_xAxis.ticks()[0]) );
 
             var lines = gridLineG.selectAll("line")
                 .data(ticks);
@@ -1921,11 +1923,11 @@ dc.coordinateGridChart = function (_chart) {
 
     _chart.renderYAxis = function (g) {
         var axisYG = g.selectAll("g.y");
-        if (axisYG.empty())
+        if (axisYG.empty()){
             axisYG = g.append("g")
                 .attr("class", "axis y")
                 .attr("transform", "translate(" + _chart.yAxisX() + "," + _chart.margins().top + ")");
-
+	}
         var axisYLab = g.selectAll("text."+Y_AXIS_LABEL_CLASS);
         if (axisYLab.empty() && _chart.yAxisLabel())
         axisYLab = g.append('text')
@@ -2289,11 +2291,53 @@ dc.coordinateGridChart = function (_chart) {
     _chart.doRender = function () {
         _chart.resetSvg();
 
+	var activeMargin = null;
+	var drag = d3.behavior.drag()
+	    .origin(Object)
+	    .on("dragstart", function(d){
+		var m = _chart.margins();
+		var e = { x: d3.event.sourceEvent.offsetX, y: d3.event.sourceEvent.offsetY };
+		if (e.x <= m.left)
+		    activeMargin = "left";
+		else if (e.x >= _chart.width()-m.right)
+		    activeMargin = "right";
+		else if (e.y <= m.top )
+		    activeMargin = "top";
+		else if (e.y >= _chart.height()-m.bottom )
+		    activeMargin = "bottom";
+		else
+		    activeMargin = null;
+	    })
+	    .on("drag", function(d){
+		if (_chart.dragObject){
+		    _chart.dragObject.moveBy(d3.event.dx, d3.event.dy);
+		    return;
+		}
+		switch (activeMargin){
+		case "left":  _chart.margins().left += d3.event.dx;  
+		    _chart.margins().left = Math.max(_chart.margins().left,5); break;
+		case "right":  _chart.margins().right -= d3.event.dx; 
+		    _chart.margins().right = Math.max(_chart.margins().right,5);break;
+		case "top":  _chart.margins().top += d3.event.dy; 
+		    _chart.margins().top = Math.max(_chart.margins().top,5);break;
+		case "bottom":  _chart.margins().bottom -= d3.event.dy; 
+		    _chart.margins().bottom = Math.max(_chart.margins().bottom,5); break;		    
+		}
+
+		if (activeMargin) _chart.render();
+	    })
+	    .on("dragend", function(){ _chart.dragObject = null; });
+	
+	_chart.svg().call(drag);
+
         _chart._generateG();
 
         generateClipPath();
         prepareXAxis(_chart.g());
         prepareYAxis(_chart.g());
+
+	if (_chart.elasticColor())
+	    _chart.calculateColorDomain();
 
         _chart.plotData();
 
@@ -2344,6 +2388,9 @@ dc.coordinateGridChart = function (_chart) {
     _chart.doRedraw = function () {
         prepareXAxis(_chart.g());
         prepareYAxis(_chart.g());
+
+	if (_chart.elasticColor())
+	    _chart.calculateColorDomain();
 
         _chart.plotData();
 
@@ -2444,6 +2491,7 @@ dc.colorChart = function(_chart) {
     var _colors = d3.scale.category20c();
 
     var _colorAccessor = function(d) { return _chart.keyAccessor()(d); };
+    var _cElasticity = false;
 
     var _colorCalculator = function(value) {
        return _colors(value,_chart);
@@ -2511,6 +2559,19 @@ dc.colorChart = function(_chart) {
         _colorAccessor = _;
         return _chart;
     };
+
+    /**
+    #### .elasticC([boolean])
+    Turn on/off elastic colors. If color elasticity is turned on, then the color chart will attempt to generate and
+    recalculate color range whenever redraw event is triggered.
+
+    **/
+    _chart.elasticColor = function (_) {
+        if (!arguments.length) return _cElasticity;
+        _cElasticity = _;
+        return _chart;
+    };
+
 
     /**
     #### .colorDomain([domain])
@@ -2588,8 +2649,10 @@ dc.stackableChart = function (_chart) {
 
     **/
     _chart.stack = function (group, name, accessor) {
-        if(!arguments.length)
+        if(!arguments.length){
             _groupStack.clear();
+	    return _chart; 
+	}
 
         _groupStack.setDefaultAccessor(_chart.valueAccessor());
 
@@ -2983,11 +3046,11 @@ dc.abstractBubbleChart = function (_chart) {
     };
 
     _chart.isSelectedNode = function (d) {
-        return _chart.hasFilter(d.key);
+        return _chart.hasFilter(_chart.keyAccessor()(d));
     };
 
     _chart.onClick = function (d) {
-        var filter = d.key;
+        var filter = _chart.keyAccessor()(d);
         dc.events.trigger(function () {
             _chart.filter(filter);
             dc.redrawAll(_chart.chartGroup());
@@ -3079,6 +3142,10 @@ dc.pieChart = function (parent, chartGroup) {
         // set radius on basis of chart dimension if missing
         _radius = _radius ? _radius : d3.min([_chart.width(), _chart.height()]) /2;
 
+	// recompute colors if needed
+	if (_chart.elasticColor())
+	    _chart.calculateColorDomain();
+	
         var arc = buildArcs();
 
         var pie = pieLayout();
@@ -3424,6 +3491,8 @@ dc.barChart = function (parent, chartGroup) {
                 return "stack " + "_" + i;
             });
 
+	layers.exit().remove();
+
         layers.each(function (d) {
             var layer = d3.select(this);
 
@@ -3655,6 +3724,7 @@ dc.lineChart = function (parent, chartGroup) {
 
         var layers = layersList.selectAll("g.stack").data(_chart.stackLayers());
 
+	layers.exit().remove();
         var layersEnter = layers
             .enter()
             .append("g")
@@ -5328,9 +5398,14 @@ dc.legend = function () {
     };
 
     _legend.render = function () {
+	_parent.svg().select(".dc-legend").remove();
+
         _g = _parent.svg().append("g")
             .attr("class", "dc-legend")
-            .attr("transform", "translate(" + _x + "," + _y + ")");
+            .attr("transform", "translate(" + _x + "," + _y + ")")
+	    .on("mousedown", function(){ 
+		_parent.dragObject = _legend; 
+	    });
 
         var itemEnter = _g.selectAll('g.dc-legend-item')
             .data(_parent.legendables())
@@ -5392,6 +5467,17 @@ dc.legend = function () {
         _gap = gap;
         return _legend;
     };
+
+    /**
+    ### .moveBy(dx, dy)
+    Move legend by given increment
+    **/
+    _legend.moveBy = function (dx, dy){
+	_x += dx;
+	_y += dy;
+	if (_g)
+	    _g.attr("transform", "translate(" + _x + "," + _y + ")");	    
+    }
 
     /**
     #### .itemHeight([value])

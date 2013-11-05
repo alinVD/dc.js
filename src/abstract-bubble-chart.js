@@ -168,11 +168,11 @@ dc.abstractBubbleChart = function (_chart) {
     };
 
     _chart.isSelectedNode = function (d) {
-        return _chart.hasFilter(d.key);
+        return _chart.hasFilter(_chart.keyAccessor()(d));
     };
 
     _chart.onClick = function (d) {
-        var filter = d.key;
+        var filter = _chart.keyAccessor()(d);
         dc.events.trigger(function () {
             _chart.filter(filter);
             dc.redrawAll(_chart.chartGroup());

@@ -30,9 +30,14 @@ dc.legend = function () {
     };
 
     _legend.render = function () {
+	_parent.svg().select(".dc-legend").remove();
+
         _g = _parent.svg().append("g")
             .attr("class", "dc-legend")
-            .attr("transform", "translate(" + _x + "," + _y + ")");
+            .attr("transform", "translate(" + _x + "," + _y + ")")
+	    .on("mousedown", function(){ 
+		_parent.dragObject = _legend; 
+	    });
 
         var itemEnter = _g.selectAll('g.dc-legend-item')
             .data(_parent.legendables())
@@ -94,6 +99,17 @@ dc.legend = function () {
         _gap = gap;
         return _legend;
     };
+
+    /**
+    ### .moveBy(dx, dy)
+    Move legend by given increment
+    **/
+    _legend.moveBy = function (dx, dy){
+	_x += dx;
+	_y += dy;
+	if (_g)
+	    _g.attr("transform", "translate(" + _x + "," + _y + ")");	    
+    }
 
     /**
     #### .itemHeight([value])

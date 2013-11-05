@@ -32,8 +32,10 @@ dc.stackableChart = function (_chart) {
 
     **/
     _chart.stack = function (group, name, accessor) {
-        if(!arguments.length)
+        if(!arguments.length){
             _groupStack.clear();
+	    return _chart; 
+	}
 
         _groupStack.setDefaultAccessor(_chart.valueAccessor());
 
