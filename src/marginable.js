@@ -22,7 +22,7 @@ dc.marginable = function (_chart) {
     **/
     _chart.margins = function (m) {
         if (!arguments.length) return _margin;
-        _margin = m;
+        _margin = { top: m.top, right: m.right, bottom: m.bottom, left:m.left}; // deep copy 
         return _chart;
     };
 

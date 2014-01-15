@@ -516,6 +516,10 @@ dc.utils.createLegendable = function (chart, group, accessor, color) {
 
 dc.utils.safeNumber = function(n){return dc.utils.isNumber(+n)?+n:0;};
 
+dc.utils.clamp = function(x, min, max) {
+    return Math.min(Math.max(x, min), max);
+};
+
 dc.events = {
     current: null
 };
@@ -765,6 +769,7 @@ dc.baseChart = function (_chart) {
     _chart.width = function (w) {
         if (!arguments.length) return _width(_root.node());
         _width = d3.functor(w || _default_width);
+	if (_legend) _legend.areaWidth(w);
         return _chart;
     };
 
@@ -791,6 +796,7 @@ dc.baseChart = function (_chart) {
     _chart.height = function (h) {
         if (!arguments.length) return _height(_root.node());
         _height = d3.functor(h || _default_height);
+	if (_legend) _legend.areaHeight(h);
         return _chart;
     };
 
@@ -1436,7 +1442,10 @@ dc.baseChart = function (_chart) {
     _chart.legend = function (l) {
         if (!arguments.length) return _legend;
         _legend = l;
-        _legend.parent(_chart);
+        _legend.parent(_chart)
+	    .areaWidth(_chart.width())
+	    .areaHeight(_chart.height());
+	
         return _chart;
     };
 
@@ -1495,7 +1504,7 @@ dc.marginable = function (_chart) {
     **/
     _chart.margins = function (m) {
         if (!arguments.length) return _margin;
-        _margin = m;
+        _margin = { top: m.top, right: m.right, bottom: m.bottom, left:m.left}; // deep copy 
         return _chart;
     };
 
@@ -1523,6 +1532,7 @@ dc.coordinateGridChart = function (_chart) {
     var Y_AXIS_LABEL_CLASS = 'y-axis-label';
     var X_AXIS_LABEL_CLASS = 'x-axis-label';
     var DEFAULT_AXIS_LABLEL_PADDING = 12;
+    var MIN_MARGIN_SIZE = 5;
 
     _chart = dc.colorChart(dc.marginable(dc.baseChart(_chart)));
 
@@ -1830,7 +1840,7 @@ dc.coordinateGridChart = function (_chart) {
         var axisXLab = g.selectAll("text."+X_AXIS_LABEL_CLASS);
         if (axisXLab.empty() && _chart.xAxisLabel())
         axisXLab = g.append('text')
-            .attr("transform", "translate(" + _chart.xAxisLength() / 2 + "," + (_chart.height() - _xAxisLabelPadding) + ")")
+            .attr("transform", "translate(" + (_chart.xAxisLength() / 2 + _chart.margins().left)+ "," + (_chart.height() - _xAxisLabelPadding) + ")")
             .attr('class', X_AXIS_LABEL_CLASS)
             .attr('text-anchor', 'middle')
             .text(_chart.xAxisLabel());
@@ -1931,7 +1941,7 @@ dc.coordinateGridChart = function (_chart) {
         var axisYLab = g.selectAll("text."+Y_AXIS_LABEL_CLASS);
         if (axisYLab.empty() && _chart.yAxisLabel())
         axisYLab = g.append('text')
-            .attr("transform", "translate(" + _yAxisLabelPadding + "," + _chart.yAxisHeight()/2 + "),rotate(-90)")
+            .attr("transform", "translate(" + _yAxisLabelPadding + "," + (_chart.yAxisHeight()/2 + _chart.margins().top)+ "),rotate(-90)")
             .attr('class', Y_AXIS_LABEL_CLASS)
             .attr('text-anchor', 'middle')
             .text(_chart.yAxisLabel());
@@ -2276,6 +2286,21 @@ dc.coordinateGridChart = function (_chart) {
         return _chart;
     };
 
+    function detectMargins(ev){
+	var m = _chart.margins(); 
+	var e = { x: ev.offsetX, y: ev.offsetY };
+	if (e.x <= m.left)
+	    return "left";
+	else if (e.x >= _chart.width()-m.right)
+	    return "right";
+	else if (e.y <= m.top )
+	    return "top";
+	else if (e.y >= _chart.height()-m.bottom )
+	    return "bottom";
+	else
+	    return null;
+    }
+
     function generateClipPath() {
         var defs = dc.utils.appendOrSelect(_parent, "defs");
 
@@ -2295,18 +2320,7 @@ dc.coordinateGridChart = function (_chart) {
 	var drag = d3.behavior.drag()
 	    .origin(Object)
 	    .on("dragstart", function(d){
-		var m = _chart.margins();
-		var e = { x: d3.event.sourceEvent.offsetX, y: d3.event.sourceEvent.offsetY };
-		if (e.x <= m.left)
-		    activeMargin = "left";
-		else if (e.x >= _chart.width()-m.right)
-		    activeMargin = "right";
-		else if (e.y <= m.top )
-		    activeMargin = "top";
-		else if (e.y >= _chart.height()-m.bottom )
-		    activeMargin = "bottom";
-		else
-		    activeMargin = null;
+		activeMargin = detectMargins(d3.event.sourceEvent);
 	    })
 	    .on("drag", function(d){
 		if (_chart.dragObject){
@@ -2314,21 +2328,53 @@ dc.coordinateGridChart = function (_chart) {
 		    return;
 		}
 		switch (activeMargin){
-		case "left":  _chart.margins().left += d3.event.dx;  
-		    _chart.margins().left = Math.max(_chart.margins().left,5); break;
-		case "right":  _chart.margins().right -= d3.event.dx; 
-		    _chart.margins().right = Math.max(_chart.margins().right,5);break;
-		case "top":  _chart.margins().top += d3.event.dy; 
-		    _chart.margins().top = Math.max(_chart.margins().top,5);break;
-		case "bottom":  _chart.margins().bottom -= d3.event.dy; 
-		    _chart.margins().bottom = Math.max(_chart.margins().bottom,5); break;		    
+		case "left":  
+		    _chart.margins().left += d3.event.dx;  
+		    _chart.margins().left = dc.utils.clamp(
+			_chart.margins().left, MIN_MARGIN_SIZE,
+			_chart.width()-_chart.margins().right-MIN_MARGIN_SIZE);
+		    break;
+		case "right":  
+		    _chart.margins().right -= d3.event.dx; 
+		    _chart.margins().right = dc.utils.clamp(
+			_chart.margins().right, MIN_MARGIN_SIZE,
+			_chart.width()-_chart.margins().left-MIN_MARGIN_SIZE);
+		    break;
+		case "top":  
+		    _chart.margins().top += d3.event.dy; 
+		    _chart.margins().top = dc.utils.clamp(
+			_chart.margins().top, MIN_MARGIN_SIZE,
+			_chart.height()-_chart.margins().bottom-MIN_MARGIN_SIZE);
+		    break;
+		case "bottom":  
+		    _chart.margins().bottom -= d3.event.dy; 
+		    _chart.margins().bottom = dc.utils.clamp(
+			_chart.margins().bottom, MIN_MARGIN_SIZE,
+			_chart.height()-_chart.margins().top-MIN_MARGIN_SIZE);
+		    break;
 		}
 
 		if (activeMargin) _chart.render();
+		return;
 	    })
 	    .on("dragend", function(){ _chart.dragObject = null; });
 	
 	_chart.svg().call(drag);
+
+	// change cursor depending on the region 
+	_chart.svg().on("mousemove", function(){
+	    var m = detectMargins(d3.event);
+	    var el = d3.select(this);
+	    if (_chart.dragObject)
+		el.style("cursor", "move");
+	    else switch (m) {
+	    case "left": el.style("cursor", "e-resize"); break;
+	    case "right": el.style("cursor", "w-resize"); break;
+	    case "bottom": el.style("cursor", "n-resize"); break;
+	    case "top": el.style("cursor", "s-resize"); break;
+	    default: el.style("cursor", "default");
+	    }
+	});
 
         _chart._generateG();
 
@@ -3098,6 +3144,7 @@ dc.pieChart = function (parent, chartGroup) {
     var _sliceCssClass = "pie-slice";
 
     var _radius,
+        _autoRadius = true,
         _innerRadius = 0;
 
     var _g;
@@ -3140,7 +3187,7 @@ dc.pieChart = function (parent, chartGroup) {
 
     function drawChart() {
         // set radius on basis of chart dimension if missing
-        _radius = _radius ? _radius : d3.min([_chart.width(), _chart.height()]) /2;
+        _radius = !_autoRadius && _radius ? _radius : d3.min([_chart.width(), _chart.height()]) /2;
 
 	// recompute colors if needed
 	if (_chart.elasticColor())
@@ -3329,12 +3376,13 @@ dc.pieChart = function (parent, chartGroup) {
 
     /**
     #### .radius([radius])
-    Get or set the radius on a particular pie chart instance. Default radius is 90px.
-
+    Get or set the radius on a particular pie chart instance. Default radius is auto radius
+    If set to 0, activates auto radius computation
     **/
     _chart.radius = function (r) {
         if (!arguments.length) return _radius;
         _radius = r;
+	_autoRadius = (_radius == 0);
         return _chart;
     };
 
@@ -3516,6 +3564,7 @@ dc.barChart = function (parent, chartGroup) {
             .attr("fill", _chart.getColor);
 
         if (_chart.renderTitle()) {
+	    bars.select("title").remove();
             bars.append("title").text(_chart.title());
         }
 
@@ -3625,6 +3674,17 @@ dc.barChart = function (parent, chartGroup) {
         _gap = _;
         return _chart;
     };
+
+    /**
+    #### .barWidth(widthOfBar)
+    Manually set the width of the bar. If set to <=0 or undefined, automatically recomputes the barWidth
+
+    **/
+    _chart.barWidth = function(_) {
+	if (!arguments.length) return _barWidth;
+        _barWidth = ( _<=0 || _===undefined) ? undefined : _ ;
+        return _chart;
+    }
 
     _chart.extendBrush = function () {
         var extent = _chart.brush().extent();
@@ -5380,14 +5440,17 @@ Examples:
 
 **/
 dc.legend = function () {
-    var LABEL_GAP = 2;
+    var LABEL_GAP = 2,
+    LABEL_MARGIN = 20;
 
     var _legend = {},
         _parent,
         _x = 0,
         _y = 0,
         _itemHeight = 12,
-        _gap = 5;
+        _gap = 5,
+        _areaWidth = 100,
+        _areaHeight = 100;
 
     var _g;
 
@@ -5398,14 +5461,14 @@ dc.legend = function () {
     };
 
     _legend.render = function () {
-	_parent.svg().select(".dc-legend").remove();
+        _parent.svg().select(".dc-legend").remove();
 
         _g = _parent.svg().append("g")
             .attr("class", "dc-legend")
             .attr("transform", "translate(" + _x + "," + _y + ")")
-	    .on("mousedown", function(){ 
-		_parent.dragObject = _legend; 
-	    });
+            .on("mousedown", function(){
+                _parent.dragObject = _legend;
+            });
 
         var itemEnter = _g.selectAll('g.dc-legend-item')
             .data(_parent.legendables())
@@ -5469,14 +5532,40 @@ dc.legend = function () {
     };
 
     /**
+    ### .areaWidth(width)
+    Set the width of the area in which the legend gets displayed 
+    **/
+    _legend.areaWidth = function (_) {
+        if (!arguments.length) return _areaWidth;
+	_x = _x / _areaWidth * _;
+        _areaWidth = _;
+        return _legend;
+    };
+
+
+    /**
+    ### .areaHeight(width)
+    Set the width of the area in which the legend gets displayed 
+    **/
+    _legend.areaHeight = function (_) {
+        if (!arguments.length) return _areaHeight;
+	_y = _y / _areaHeight * _;
+        _areaHeight = _;
+
+        return _legend;
+    };
+
+    /**
     ### .moveBy(dx, dy)
     Move legend by given increment
     **/
     _legend.moveBy = function (dx, dy){
 	_x += dx;
 	_y += dy;
+	_x = dc.util.clamp(_x|0, 0, _areaWidth-LABEL_MARGIN);
+	_y = dc.util.clamp(_y|0, 0, _areaHeight-LABEL_MARGIN);
 	if (_g)
-	    _g.attr("transform", "translate(" + _x + "," + _y + ")");	    
+	    _g.attr("transform", "translate(" + _x + "," + _y + ")");
     }
 
     /**

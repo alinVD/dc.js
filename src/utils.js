@@ -239,3 +239,7 @@ dc.utils.createLegendable = function (chart, group, accessor, color) {
 };
 
 dc.utils.safeNumber = function(n){return dc.utils.isNumber(+n)?+n:0;};
+
+dc.utils.clamp = function(x, min, max) {
+    return Math.min(Math.max(x, min), max);
+};

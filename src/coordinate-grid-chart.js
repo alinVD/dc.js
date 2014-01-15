@@ -11,6 +11,7 @@ dc.coordinateGridChart = function (_chart) {
     var Y_AXIS_LABEL_CLASS = 'y-axis-label';
     var X_AXIS_LABEL_CLASS = 'x-axis-label';
     var DEFAULT_AXIS_LABLEL_PADDING = 12;
+    var MIN_MARGIN_SIZE = 5;
 
     _chart = dc.colorChart(dc.marginable(dc.baseChart(_chart)));
 
@@ -318,7 +319,7 @@ dc.coordinateGridChart = function (_chart) {
         var axisXLab = g.selectAll("text."+X_AXIS_LABEL_CLASS);
         if (axisXLab.empty() && _chart.xAxisLabel())
         axisXLab = g.append('text')
-            .attr("transform", "translate(" + _chart.xAxisLength() / 2 + "," + (_chart.height() - _xAxisLabelPadding) + ")")
+            .attr("transform", "translate(" + (_chart.xAxisLength() / 2 + _chart.margins().left)+ "," + (_chart.height() - _xAxisLabelPadding) + ")")
             .attr('class', X_AXIS_LABEL_CLASS)
             .attr('text-anchor', 'middle')
             .text(_chart.xAxisLabel());
@@ -419,7 +420,7 @@ dc.coordinateGridChart = function (_chart) {
         var axisYLab = g.selectAll("text."+Y_AXIS_LABEL_CLASS);
         if (axisYLab.empty() && _chart.yAxisLabel())
         axisYLab = g.append('text')
-            .attr("transform", "translate(" + _yAxisLabelPadding + "," + _chart.yAxisHeight()/2 + "),rotate(-90)")
+            .attr("transform", "translate(" + _yAxisLabelPadding + "," + (_chart.yAxisHeight()/2 + _chart.margins().top)+ "),rotate(-90)")
             .attr('class', Y_AXIS_LABEL_CLASS)
             .attr('text-anchor', 'middle')
             .text(_chart.yAxisLabel());
@@ -764,6 +765,21 @@ dc.coordinateGridChart = function (_chart) {
         return _chart;
     };
 
+    function detectMargins(ev){
+	var m = _chart.margins(); 
+	var e = { x: ev.offsetX, y: ev.offsetY };
+	if (e.x <= m.left)
+	    return "left";
+	else if (e.x >= _chart.width()-m.right)
+	    return "right";
+	else if (e.y <= m.top )
+	    return "top";
+	else if (e.y >= _chart.height()-m.bottom )
+	    return "bottom";
+	else
+	    return null;
+    }
+
     function generateClipPath() {
         var defs = dc.utils.appendOrSelect(_parent, "defs");
 
@@ -783,18 +799,7 @@ dc.coordinateGridChart = function (_chart) {
 	var drag = d3.behavior.drag()
 	    .origin(Object)
 	    .on("dragstart", function(d){
-		var m = _chart.margins();
-		var e = { x: d3.event.sourceEvent.offsetX, y: d3.event.sourceEvent.offsetY };
-		if (e.x <= m.left)
-		    activeMargin = "left";
-		else if (e.x >= _chart.width()-m.right)
-		    activeMargin = "right";
-		else if (e.y <= m.top )
-		    activeMargin = "top";
-		else if (e.y >= _chart.height()-m.bottom )
-		    activeMargin = "bottom";
-		else
-		    activeMargin = null;
+		activeMargin = detectMargins(d3.event.sourceEvent);
 	    })
 	    .on("drag", function(d){
 		if (_chart.dragObject){
@@ -802,21 +807,53 @@ dc.coordinateGridChart = function (_chart) {
 		    return;
 		}
 		switch (activeMargin){
-		case "left":  _chart.margins().left += d3.event.dx;  
-		    _chart.margins().left = Math.max(_chart.margins().left,5); break;
-		case "right":  _chart.margins().right -= d3.event.dx; 
-		    _chart.margins().right = Math.max(_chart.margins().right,5);break;
-		case "top":  _chart.margins().top += d3.event.dy; 
-		    _chart.margins().top = Math.max(_chart.margins().top,5);break;
-		case "bottom":  _chart.margins().bottom -= d3.event.dy; 
-		    _chart.margins().bottom = Math.max(_chart.margins().bottom,5); break;		    
+		case "left":  
+		    _chart.margins().left += d3.event.dx;  
+		    _chart.margins().left = dc.utils.clamp(
+			_chart.margins().left, MIN_MARGIN_SIZE,
+			_chart.width()-_chart.margins().right-MIN_MARGIN_SIZE);
+		    break;
+		case "right":  
+		    _chart.margins().right -= d3.event.dx; 
+		    _chart.margins().right = dc.utils.clamp(
+			_chart.margins().right, MIN_MARGIN_SIZE,
+			_chart.width()-_chart.margins().left-MIN_MARGIN_SIZE);
+		    break;
+		case "top":  
+		    _chart.margins().top += d3.event.dy; 
+		    _chart.margins().top = dc.utils.clamp(
+			_chart.margins().top, MIN_MARGIN_SIZE,
+			_chart.height()-_chart.margins().bottom-MIN_MARGIN_SIZE);
+		    break;
+		case "bottom":  
+		    _chart.margins().bottom -= d3.event.dy; 
+		    _chart.margins().bottom = dc.utils.clamp(
+			_chart.margins().bottom, MIN_MARGIN_SIZE,
+			_chart.height()-_chart.margins().top-MIN_MARGIN_SIZE);
+		    break;
 		}
 
 		if (activeMargin) _chart.render();
+		return;
 	    })
 	    .on("dragend", function(){ _chart.dragObject = null; });
 	
 	_chart.svg().call(drag);
+
+	// change cursor depending on the region 
+	_chart.svg().on("mousemove", function(){
+	    var m = detectMargins(d3.event);
+	    var el = d3.select(this);
+	    if (_chart.dragObject)
+		el.style("cursor", "move");
+	    else switch (m) {
+	    case "left": el.style("cursor", "e-resize"); break;
+	    case "right": el.style("cursor", "w-resize"); break;
+	    case "bottom": el.style("cursor", "n-resize"); break;
+	    case "top": el.style("cursor", "s-resize"); break;
+	    default: el.style("cursor", "default");
+	    }
+	});
 
         _chart._generateG();
 

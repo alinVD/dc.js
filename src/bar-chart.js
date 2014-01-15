@@ -87,6 +87,7 @@ dc.barChart = function (parent, chartGroup) {
             .attr("fill", _chart.getColor);
 
         if (_chart.renderTitle()) {
+	    bars.select("title").remove();
             bars.append("title").text(_chart.title());
         }
 
@@ -196,6 +197,17 @@ dc.barChart = function (parent, chartGroup) {
         _gap = _;
         return _chart;
     };
+
+    /**
+    #### .barWidth(widthOfBar)
+    Manually set the width of the bar. If set to <=0 or undefined, automatically recomputes the barWidth
+
+    **/
+    _chart.barWidth = function(_) {
+	if (!arguments.length) return _barWidth;
+        _barWidth = ( _<=0 || _===undefined) ? undefined : _ ;
+        return _chart;
+    }
 
     _chart.extendBrush = function () {
         var extent = _chart.brush().extent();

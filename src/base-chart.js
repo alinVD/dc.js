@@ -86,6 +86,7 @@ dc.baseChart = function (_chart) {
     _chart.width = function (w) {
         if (!arguments.length) return _width(_root.node());
         _width = d3.functor(w || _default_width);
+	if (_legend) _legend.areaWidth(w);
         return _chart;
     };
 
@@ -112,6 +113,7 @@ dc.baseChart = function (_chart) {
     _chart.height = function (h) {
         if (!arguments.length) return _height(_root.node());
         _height = d3.functor(h || _default_height);
+	if (_legend) _legend.areaHeight(h);
         return _chart;
     };
 
@@ -757,7 +759,10 @@ dc.baseChart = function (_chart) {
     _chart.legend = function (l) {
         if (!arguments.length) return _legend;
         _legend = l;
-        _legend.parent(_chart);
+        _legend.parent(_chart)
+	    .areaWidth(_chart.width())
+	    .areaHeight(_chart.height());
+	
         return _chart;
     };
 

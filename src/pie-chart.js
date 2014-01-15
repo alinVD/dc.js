@@ -36,6 +36,7 @@ dc.pieChart = function (parent, chartGroup) {
     var _sliceCssClass = "pie-slice";
 
     var _radius,
+        _autoRadius = true,
         _innerRadius = 0;
 
     var _g;
@@ -78,7 +79,7 @@ dc.pieChart = function (parent, chartGroup) {
 
     function drawChart() {
         // set radius on basis of chart dimension if missing
-        _radius = _radius ? _radius : d3.min([_chart.width(), _chart.height()]) /2;
+        _radius = !_autoRadius && _radius ? _radius : d3.min([_chart.width(), _chart.height()]) /2;
 
 	// recompute colors if needed
 	if (_chart.elasticColor())
@@ -267,12 +268,13 @@ dc.pieChart = function (parent, chartGroup) {
 
     /**
     #### .radius([radius])
-    Get or set the radius on a particular pie chart instance. Default radius is 90px.
-
+    Get or set the radius on a particular pie chart instance. Default radius is auto radius
+    If set to 0, activates auto radius computation
     **/
     _chart.radius = function (r) {
         if (!arguments.length) return _radius;
         _radius = r;
+	_autoRadius = (_radius == 0);
         return _chart;
     };
 
