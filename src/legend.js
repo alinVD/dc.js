@@ -134,8 +134,8 @@ dc.legend = function () {
     _legend.moveBy = function (dx, dy){
 	_x += dx;
 	_y += dy;
-	_x = dc.util.clamp(_x|0, 0, _areaWidth-LABEL_MARGIN);
-	_y = dc.util.clamp(_y|0, 0, _areaHeight-LABEL_MARGIN);
+	_x = dc.utils.clamp(_x|0, 0, _areaWidth-LABEL_MARGIN);
+	_y = dc.utils.clamp(_y|0, 0, _areaHeight-LABEL_MARGIN);
 	if (_g)
 	    _g.attr("transform", "translate(" + _x + "," + _y + ")");
     }
